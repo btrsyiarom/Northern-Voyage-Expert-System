@@ -1,0 +1,17 @@
+# netlify.toml
+
+[build]
+  publish = "dist"
+  command = "npm run build"
+
+# Redirect `/api/chat` requests to the Netlify serverless function directly
+[[redirects]]
+  from = "/api/chat"
+  to = "/.netlify/functions/chat"
+  status = 200
+
+# Ensure single-page application (SPA) client-side routing fallback
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200

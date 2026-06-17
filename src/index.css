@@ -1,0 +1,38 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-display: "Space Grotesk", sans-serif;
+  --font-mono: "JetBrains Mono", monospace;
+  
+  --color-sage-50: #f0fdf4; /* Bright crisp minty-white */
+  --color-sage-100: #dcfce7; /* Warm bright mint */
+  --color-sage-200: #bbf7d0; /* Sharp bright minty green */
+  --color-sage-300: #86efac;
+  --color-sage-400: #4ade80;
+  --color-sage-500: #10b981; /* High-vibrancy Emerald */
+  --color-sage-600: #059669; /* Sharp Emerald Green */
+  --color-sage-700: #047857; /* Deep Premium Emerald */
+  --color-sage-800: #065f46;
+  --color-sage-900: #064e3b;
+  --color-sage-950: #022c22;
+
+  --color-darkgreen-50: #f0fdf4; /* Bright crisp minty-white */
+  --color-darkgreen-100: #dcfce7; /* Warm bright mint */
+  --color-darkgreen-200: #bbf7d0; /* Sharp bright minty green */
+  --color-darkgreen-300: #86efac;
+  --color-darkgreen-400: #4ade80;
+  --color-darkgreen-500: #10b981; /* High-vibrancy Emerald */
+  --color-darkgreen-600: #059669; /* Sharp Emerald Green */
+  --color-darkgreen-700: #047857; /* Deep Premium Emerald */
+  --color-darkgreen-800: #065f46;
+  --color-darkgreen-900: #064e3b;
+  --color-darkgreen-950: #022c22;
+}
+
+body {
+  font-family: var(--font-sans);
+  background-color: #f8fafc; /* Sharp clear light slate for modern premium dashboards */
+  color: #0f172a; /* Deep graphite slate for supreme readability */
+}

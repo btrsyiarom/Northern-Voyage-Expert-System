@@ -1,0 +1,8 @@
+{
+  "name": "Remix: NorthVoyage Expert System",
+  "description": "An interactive rule-based expert system for travel itinerary planning across Penang, Perak, Kedah, and Perlis based on ISP543 System Design Reference.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
