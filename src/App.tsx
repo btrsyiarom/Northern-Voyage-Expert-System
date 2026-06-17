@@ -28,7 +28,10 @@ import {
   Utensils,
   Gem,
   Tent,
-  DollarSign
+  DollarSign,
+  MessageCircle,
+  Send,
+  X
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { UserInputs, InferenceResult, SavedTrip, StateType, InterestType, FoodEntry, POI } from './types';
@@ -54,6 +57,76 @@ const INTEREST_META: Record<InterestType, { label: string; icon: string; desc: s
   shopping: { label: 'Shopping Experience', icon: '🛍️', desc: 'Premium waterfront hubs, border bazaars' }
 };
 
+interface ChatMessage {
+  role: 'user' | 'model';
+  content: string;
+}
+
+// Custom parser component to beautifully format Kai's replies without exposing raw system asterisks (**) or hashes (##).
+function parseBoldText(text: string) {
+  const parts = text.split(/\*\*([^*]+)\*\*/g);
+  return parts.map((part, i) => {
+    if (i % 2 === 1) {
+      return (
+        <strong key={i} className="font-extrabold text-blue-950 bg-blue-50/70 px-1.2 py-0.5 rounded text-[11px] border border-blue-100/30">
+          {part}
+        </strong>
+      );
+    }
+    // Handle italics as well
+    const subParts = part.split(/\*([^*]+)\*/g);
+    return subParts.map((sub, j) => {
+      if (j % 2 === 1) {
+        return <em key={j} className="italic text-blue-900 font-medium">{sub}</em>;
+      }
+      return sub;
+    });
+  });
+}
+
+function FormattedChatMessage({ content }: { content: string }) {
+  const lines = content.split('\n');
+  return (
+    <div className="space-y-1.5 text-xs text-slate-750 leading-relaxed font-normal">
+      {lines.map((line, idx) => {
+        let trimmed = line.trim();
+        if (!trimmed) {
+          return <div key={idx} className="h-1.5" />;
+        }
+
+        // Handle titles or headers
+        if (trimmed.startsWith('###') || trimmed.startsWith('##')) {
+          const rawText = trimmed.replace(/^#+\s*/, '');
+          return (
+            <h5 key={idx} className="font-extrabold text-[12px] text-blue-950 mt-3 mb-1 tracking-tight flex items-center gap-1">
+              <span className="w-1.5 h-3 rounded bg-blue-500 inline-block"></span>
+              {parseBoldText(rawText)}
+            </h5>
+          );
+        }
+
+        // Handle list elements
+        if (trimmed.startsWith('*') || trimmed.startsWith('-')) {
+          const rawText = trimmed.replace(/^[\*\-]\s*/, '');
+          return (
+            <div key={idx} className="flex gap-1.5 pl-2 items-start my-1 text-slate-700">
+              <span className="text-blue-500 font-bold text-[13px] leading-3">•</span>
+              <span className="flex-1 text-[11.5px]">{parseBoldText(rawText)}</span>
+            </div>
+          );
+        }
+
+        // Regular line sentence
+        return (
+          <p key={idx} className="mb-0.5 text-slate-750 text-[11.5px]">
+            {parseBoldText(line)}
+          </p>
+        );
+      })}
+    </div>
+  );
+}
+
 export default function App() {
   const [inputs, setInputs] = useState<UserInputs>(() => {
     const saved = localStorage.getItem('nv_current_inputs_v2');
@@ -77,6 +150,80 @@ export default function App() {
 
   const [successMessage, setSuccessMessage] = useState('');
   const [errorMessage, setErrorMessage] = useState('');
+
+  // Kai Travel Chatbot state hooks
+  const [chatOpen, setChatOpen] = useState(false);
+  const [chatMessages, setChatMessages] = useState<ChatMessage[]>(() => {
+    const saved = localStorage.getItem('nv_chat_messages_v1');
+    return saved ? JSON.parse(saved) : [
+      { role: 'model', content: "Hey! I'm Kai, your AI itinerary assistant. How can I help you today?" }
+    ];
+  });
+  const [chatInput, setChatInput] = useState('');
+  const [chatLoading, setChatLoading] = useState(false);
+
+  // Sync chat messages to LocalStorage
+  useEffect(() => {
+    localStorage.setItem('nv_chat_messages_v1', JSON.stringify(chatMessages));
+  }, [chatMessages]);
+
+  const chatEndRef = React.useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (chatEndRef.current) {
+      chatEndRef.current.scrollIntoView({ behavior: 'smooth' });
+    }
+  }, [chatMessages, chatOpen]);
+
+  const handleSendChatMessage = async (textToSend: string) => {
+    const trimmed = textToSend.trim();
+    if (!trimmed) return;
+
+    const userMsg: ChatMessage = { role: 'user', content: trimmed };
+    const updatedMessages = [...chatMessages, userMsg];
+    
+    setChatMessages(updatedMessages);
+    setChatInput('');
+    setChatLoading(true);
+
+    try {
+      const response = await fetch('/api/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          message: trimmed
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error('Server responded with an error status');
+      }
+
+      const data = await response.json();
+      const extractedReply = data.reply || data.response;
+      
+      if (extractedReply) {
+        setChatMessages(prev => [...prev, { role: 'model', content: extractedReply }]);
+      } else if (data.error) {
+        throw new Error(data.error);
+      } else {
+        throw new Error('Malformed server response');
+      }
+    } catch (err: any) {
+      console.error(err);
+      setChatMessages(prev => [
+        ...prev, 
+        { role: 'model', content: "Apologies, I encountered a minor signal loss. Please try sending your message again!" }
+      ]);
+    } finally {
+      setChatLoading(false);
+    }
+  };
+
+  const handleResetChat = () => {
+    setChatMessages([
+      { role: 'model', content: "Hey! I'm Kai, your AI itinerary assistant. How can I help you today?" }
+    ]);
+  };
 
   const basePoisPerDay = inputs.pace === 'slow' ? 1 : inputs.pace === 'moderate' ? 2 : 3;
 
@@ -1706,6 +1853,159 @@ export default function App() {
               </button>
             </div>
           </motion.div>
+        </div>
+      )}
+
+      {/* FLOATING CHATBOT WIDGET (Option B: Show only after itinerary is generated) */}
+      {currentStep === 9 && inferenceResult && (
+        <div className="fixed bottom-6 right-6 z-55 font-sans">
+          <AnimatePresence>
+            {chatOpen && (
+              <motion.div
+                initial={{ opacity: 0, y: 20, scale: 0.95 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                exit={{ opacity: 0, y: 20, scale: 0.95 }}
+                transition={{ duration: 0.18, ease: "easeOut" }}
+                className="bg-white border border-indigo-120/40 w-84 max-w-[calc(100vw-2rem)] h-[410px] rounded-2xl shadow-2xl flex flex-col overflow-hidden mb-3"
+              >
+                {/* HEADER */}
+                <div className="bg-gradient-to-r from-indigo-700 via-indigo-800 to-blue-900 text-white p-3 flex items-center justify-between shadow-xs">
+                  <div className="flex items-center gap-2">
+                    <div className="w-8 h-8 rounded-full bg-white/15 flex items-center justify-center text-sm font-black border border-white/20 shadow-2xs">
+                      👨‍✈️
+                    </div>
+                    <div>
+                      <h4 className="font-extrabold text-xs tracking-tight">AI Assistant Kai</h4>
+                      <span className="text-[9px] text-emerald-100 flex items-center gap-1.5">
+                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+                        Concierge • Active Itinerary
+                      </span>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={handleResetChat}
+                      title="Reset chat session"
+                      className="px-1.5 py-0.5 rounded-md bg-white/10 text-white/90 hover:text-white hover:bg-white/20 transition-colors cursor-pointer text-[9px] font-mono font-bold"
+                    >
+                      Clear
+                    </button>
+                    <button
+                      onClick={() => setChatOpen(false)}
+                      className="p-1 rounded-md text-white/80 hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                </div>
+
+                {/* MESSAGES */}
+                <div className="flex-1 overflow-y-auto p-3 space-y-3 bg-slate-50/60 scrollbar-thin">
+                  {chatMessages.map((msg, idx) => {
+                    const isUser = msg.role === 'user';
+                    return (
+                      <div key={idx} className={`flex ${isUser ? 'justify-end' : 'justify-start'}`}>
+                        <div className={`p-2.5 rounded-xl max-w-[85%] leading-relaxed shadow-3xs ${
+                          isUser 
+                            ? 'bg-indigo-600 text-white rounded-br-none text-xs font-medium' 
+                            : 'bg-white text-slate-800 border border-indigo-100/40 rounded-bl-none'
+                        }`}>
+                          {isUser ? (
+                            <p className="whitespace-pre-wrap leading-relaxed break-words font-medium text-xs">{msg.content}</p>
+                          ) : (
+                            <FormattedChatMessage content={msg.content} />
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                  {chatLoading && (
+                    <div className="flex justify-start">
+                      <div className="bg-white border border-indigo-100/30 p-2.5 rounded-xl rounded-bl-none text-xs flex items-center gap-2 shadow-3xs">
+                        <span className="flex gap-1" aria-hidden="true">
+                          <span className="w-1 h-1 bg-indigo-500 rounded-full animate-bounce [animation-delay:-0.3s]"></span>
+                          <span className="w-1 h-1 bg-indigo-500 rounded-full animate-bounce [animation-delay:-0.15s]"></span>
+                          <span className="w-1 h-1 bg-indigo-500 rounded-full animate-bounce"></span>
+                        </span>
+                        <span className="text-[10px] font-bold text-indigo-600/90 tracking-tight">Kai is drafting...</span>
+                      </div>
+                    </div>
+                  )}
+                  <div ref={chatEndRef} />
+                </div>
+
+                {/* CHIPS */}
+                <div className="p-1.5 border-t border-slate-100 flex gap-1 overflow-x-auto whitespace-nowrap bg-white scrollbar-none shrink-0 border-b border-slate-100">
+                  {[
+                    "Halal highlights in Penang?",
+                    "Highlight cave routes in Perak",
+                    "Why go to Langkawi, Kedah?",
+                    "Tell me about Perlis karst hills"
+                  ].map((chip) => (
+                    <button
+                      key={chip}
+                      onClick={() => {
+                        if (!chatLoading) {
+                          handleSendChatMessage(chip);
+                        }
+                      }}
+                      disabled={chatLoading}
+                      className="text-[9px] font-bold text-indigo-700 bg-indigo-50/50 border border-indigo-100/45 hover:bg-indigo-100/80 transition-all rounded-full px-2 py-0.5 cursor-pointer shrink-0 disabled:opacity-50"
+                    >
+                      {chip}
+                    </button>
+                  ))}
+                </div>
+
+                {/* INPUT FORM */}
+                <form
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    if (!chatLoading && chatInput.trim()) {
+                      handleSendChatMessage(chatInput);
+                    }
+                  }}
+                  className="p-2 border-t border-slate-100 flex gap-1.5 bg-white items-center"
+                >
+                  <input
+                    type="text"
+                    value={chatInput}
+                    onChange={(e) => setChatInput(e.target.value)}
+                    placeholder="Ask Kai questions..."
+                    disabled={chatLoading}
+                    className="flex-1 bg-slate-50 border border-slate-150 text-slate-850 disabled:opacity-60 text-xs px-2.5 py-1.5 rounded-lg focus:border-indigo-400 focus:bg-white outline-none font-semibold transition-colors"
+                  />
+                  <button
+                    type="submit"
+                    disabled={chatLoading || !chatInput.trim()}
+                    className="p-1.5 bg-indigo-650 text-white rounded-lg hover:bg-indigo-750 transition-all cursor-pointer disabled:opacity-40 flex items-center justify-center shrink-0"
+                  >
+                    <Send className="w-4 h-4 text-white" />
+                  </button>
+                </form>
+              </motion.div>
+            )}
+          </AnimatePresence>
+
+          {/* FLOATING TRIGGER BUTTON */}
+          <button
+            onClick={() => setChatOpen(!chatOpen)}
+            className={`flex items-center gap-2 p-3 rounded-full text-white shadow-xl hover:scale-105 transition-all text-[11px] font-black cursor-pointer uppercase tracking-wider ${
+              chatOpen 
+                ? 'bg-rose-600 hover:bg-rose-700' 
+                : 'bg-indigo-600 hover:bg-indigo-700'
+            }`}
+            id="chat-toggle-floating-btn"
+          >
+            {chatOpen ? (
+              <X className="w-5 h-5 text-white" />
+            ) : (
+              <>
+                <MessageCircle className="w-5 h-5 text-white animate-pulse" />
+                <span>Ask Kai AI</span>
+              </>
+            )}
+          </button>
         </div>
       )}
 

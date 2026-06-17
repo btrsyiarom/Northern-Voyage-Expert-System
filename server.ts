@@ -93,7 +93,7 @@ ${context.itineraryText || "No active itinerary calculated yet."}`;
       }
     });
 
-    res.json({ response: response.text });
+    res.json({ response: response.text, reply: response.text });
   } catch (error: any) {
     console.error("Error in /api/chat:", error);
     res.status(500).json({ error: error.message || "An error occurred when speaking to Gemini." });
