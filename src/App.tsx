@@ -186,11 +186,32 @@ export default function App() {
     setChatLoading(true);
 
     try {
+      // Structure full context about the active expert system recommendations and inputs
+      const context = {
+        duration: inputs.duration,
+        transport: inputs.transport,
+        companion: inputs.companion,
+        pace: inputs.pace,
+        budget: inputs.budget,
+        food_restrict: inputs.food_restrict,
+        interests: inputs.interests,
+        recommendedState: inferenceResult?.recommendedState,
+        itineraryText: inferenceResult?.itinerary 
+          ? inferenceResult.itinerary.map(day => (
+              `Day ${day.dayNumber} (${day.theme}):\n` + 
+              `🍽️ Food Option: ${day.food?.name || 'Local recommendation'} (${day.food?.cuisine || ''})\n` +
+              `🏛️ Attractions: ${day.pois.map(poi => `${poi.name} [Intensity Level: ${poi.activity_intensity}, Cost: ${poi.costTier}]`).join(', ')}`
+            )).join('\n\n') 
+          : 'No computations or active plans yet.'
+      };
+
       const response = await fetch('/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          message: trimmed
+          message: trimmed,
+          history: chatMessages,
+          context
         })
       });
 
@@ -1965,22 +1986,30 @@ export default function App() {
                       handleSendChatMessage(chatInput);
                     }
                   }}
-                  className="p-2 border-t border-slate-100 flex gap-1.5 bg-white items-center"
+                  className="p-2 border-t border-slate-100 flex gap-1.5 bg-white items-end font-sans"
                 >
-                  <input
-                    type="text"
+                  <textarea
                     value={chatInput}
                     onChange={(e) => setChatInput(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && !e.shiftKey) {
+                        e.preventDefault();
+                        if (!chatLoading && chatInput.trim()) {
+                          handleSendChatMessage(chatInput);
+                        }
+                      }
+                    }}
                     placeholder="Ask Kai questions..."
                     disabled={chatLoading}
-                    className="flex-1 bg-slate-50 border border-slate-150 text-slate-850 disabled:opacity-60 text-xs px-2.5 py-1.5 rounded-lg focus:border-indigo-400 focus:bg-white outline-none font-semibold transition-colors"
+                    rows={1}
+                    className="flex-1 bg-slate-50 border border-slate-150 text-slate-850 disabled:opacity-60 text-xs px-2.5 py-2 rounded-lg focus:border-indigo-400 focus:bg-white outline-none font-semibold transition-colors resize-none max-h-20 min-h-[34px] leading-normal"
                   />
                   <button
                     type="submit"
                     disabled={chatLoading || !chatInput.trim()}
-                    className="p-1.5 bg-indigo-650 text-white rounded-lg hover:bg-indigo-750 transition-all cursor-pointer disabled:opacity-40 flex items-center justify-center shrink-0"
+                    className="p-2 bg-indigo-700 hover:bg-indigo-800 text-white rounded-lg transition-all cursor-pointer disabled:bg-slate-100 disabled:text-slate-400 disabled:cursor-not-allowed flex items-center justify-center shrink-0 w-8 h-8 self-end"
                   >
-                    <Send className="w-4 h-4 text-white" />
+                    <Send className="w-4 h-4" />
                   </button>
                 </form>
               </motion.div>
